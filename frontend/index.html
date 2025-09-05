@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ERP Frontend (Vue 3 + FastAPI)</title>
+  <link rel="icon" href="data:," />
+  <style>
+    :root { --bg:#0f172a; --card:#111827; --muted:#94a3b8; --text:#e5e7eb; --accent:#22c55e; --danger:#ef4444; }
+    html, body { margin:0; padding:0; background:var(--bg); color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+    a { color:#60a5fa; text-decoration:none; }
+    .container { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+    .card { background: var(--card); border: 1px solid #1f2937; border-radius: 12px; padding: 16px; box-shadow: 0 10px 20px rgba(0,0,0,.25); }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .row > * { flex:0 0 auto; }
+    h1 { font-size: 20px; margin: 0 0 12px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    input, button, select, textarea { background:#0b1220; border:1px solid #293248; color:var(--text); border-radius: 8px; padding: 10px 12px; font-size:14px; }
+    input:focus, textarea:focus { outline: 2px solid #3b82f6; border-color:#3b82f6; }
+    button { cursor:pointer; }
+    .btn { padding:10px 14px; border-radius: 10px; border:1px solid #2a3348; background:#131b2e; transition:.15s all ease; }
+    .btn:hover { transform: translateY(-1px); border-color:#3b82f6; }
+    .btn.primary { background: linear-gradient(180deg, #1f2937, #111827); border-color:#334155; }
+    .btn.success { border-color:#166534; background: linear-gradient(180deg, #1e293b, #0b1b12); }
+    .btn.danger { border-color:#7f1d1d; background: linear-gradient(180deg, #1e293b, #1a0b0b); color:#fecaca; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #1f2937; padding: 10px; text-align: left; font-size:14px; }
+    th { color:#a5b4fc; font-weight:600; }
+    .error { background:#1f0b0b; border:1px solid #7f1d1d; color:#fecaca; padding:10px; border-radius:8px; margin: 8px 0; }
+    .success { background:#0b1f13; border:1px solid #14532d; color:#bbf7d0; padding:10px; border-radius:8px; margin: 8px 0; }
+    .tag { display:inline-block; font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid #334155; color:#cbd5e1; }
+    .footer { margin-top: 24px; color:var(--muted); font-size: 12px; }
+    .actions { display:flex; gap:6px; }
+  </style>
+</head>
+<body>
+  <div id="app" class="container">
+    <div class="card">
+      <h1>ERP Frontend 데모</h1>
+      <div class="muted">FastAPI 백엔드와 연동된 간단한 Organizations CRUD UI (Vue 3 CDN)</div>
+
+      <div v-if="message.text" :class="message.type" style="margin-top:12px">{{ message.text }}</div>
+
+      <div style="margin-top:16px" class="row">
+        <input v-model.trim="form.name" type="text" placeholder="조직 이름 (필수)" />
+        <input v-model.trim="form.description" type="text" placeholder="설명 (선택)" />
+        <button class="btn success" @click="createOrg" :disabled="loading">조직 생성</button>
+        <button class="btn" @click="loadOrgs" :disabled="loading">새로고침</button>
+        <span class="tag" v-if="loading">로딩 중...</span>
+      </div>
+
+      <div style="margin-top:16px; overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:60px">ID</th>
+              <th>이름</th>
+              <th>설명</th>
+              <th style="width:220px">생성됨</th>
+              <th style="width:160px">동작</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="orgs.length === 0">
+              <td colspan="5" class="muted">데이터가 없습니다. 상단에서 조직을 생성해 보세요.</td>
+            </tr>
+            <tr v-for="org in orgs" :key="org.id">
+              <td>{{ org.id }}</td>
+              <td>
+                <input v-model="org.editName" placeholder="이름" />
+              </td>
+              <td>
+                <input v-model="org.editDescription" placeholder="설명" />
+              </td>
+              <td><span class="muted">{{ formatDT(org.created_at) }}</span></td>
+              <td class="actions">
+                <a class="btn" :href="`/frontend/org.html?id=${org.id}`">보기</a>
+                <button class="btn primary" @click="updateOrg(org)" :disabled="org.saving || loading">수정</button>
+                <button class="btn danger" @click="deleteOrg(org.id)" :disabled="loading">삭제</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="footer">백엔드 OpenAPI 문서: <a href="/docs" target="_blank">/docs</a> · ReDoc: <a href="/redoc" target="_blank">/redoc</a></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js"></script>
+  <script>
+    const API = {
+      list: () => fetch('/organizations/').then(r => r.json()),
+      create: (payload) => fetch('/organizations/', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }).then(async r => { if(!r.ok){ throw new Error((await r.json()).detail || 'Create failed'); } return r.json(); }),
+      update: (id, payload) => fetch(`/organizations/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }).then(async r => { if(!r.ok){ throw new Error((await r.json()).detail || 'Update failed'); } return r.json(); }),
+      remove: (id) => fetch(`/organizations/${id}`, { method:'DELETE' }).then(async r => { if(!r.ok){ throw new Error((await r.json()).detail || 'Delete failed'); } return true; }),
+    };
+
+    const { createApp, reactive, onMounted } = Vue;
+
+    createApp({
+      setup(){
+        const state = reactive({ orgs: [], loading:false, message:{ text:'', type:'success' }, form:{ name:'', description:'' } });
+
+        function setMsg(text, type='success'){ state.message.text = text; state.message.type = type; setTimeout(()=>{ state.message.text=''; }, 2500); }
+        function formatDT(dt){ if(!dt) return ''; try{ return new Date(dt).toLocaleString(); } catch{ return dt; } }
+
+        async function loadOrgs(){
+          try{ state.loading = true; const items = await API.list(); state.orgs = items.map(it => ({...it, editName: it.name, editDescription: it.description || '', saving:false})); }
+          catch(e){ setMsg(e.message || '목록 불러오기에 실패했습니다', 'error'); }
+          finally{ state.loading = false; }
+        }
+
+        async function createOrg(){
+          if(!state.form.name){ setMsg('이름은 필수입니다', 'error'); return; }
+          try {
+            state.loading = true;
+            const created = await API.create({ name: state.form.name, description: state.form.description || null });
+            setMsg(`생성됨: #${created.id} ${created.name}`);
+            state.form.name=''; state.form.description='';
+            await loadOrgs();
+          } catch(e){ setMsg(e.message || '생성 실패', 'error'); }
+          finally { state.loading = false; }
+        }
+
+        async function updateOrg(org){
+          try {
+            org.saving = true;
+            const updated = await API.update(org.id, { name: org.editName, description: org.editDescription || null });
+            org.name = updated.name; org.description = updated.description;
+            setMsg('수정되었습니다');
+            await loadOrgs();
+          } catch(e){ setMsg(e.message || '수정 실패', 'error'); }
+          finally { org.saving = false; }
+        }
+
+        async function deleteOrg(id){
+          if(!confirm('정말 삭제하시겠습니까?')) return;
+          try { state.loading = true; await API.remove(id); setMsg('삭제되었습니다'); await loadOrgs(); }
+          catch(e){ setMsg(e.message || '삭제 실패', 'error'); }
+          finally { state.loading = false; }
+        }
+
+        onMounted(loadOrgs);
+
+        return { ...Vue.toRefs(state), loadOrgs, createOrg, deleteOrg, updateOrg, formatDT };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

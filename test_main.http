@@ -1,0 +1,70 @@
+# ERP FastAPI HTTP tests
+# Run server: uv run uvicorn app.main:app --reload
+# Swagger UI: http://127.0.0.1:8000/docs
+
+### Root health
+GET http://127.0.0.1:8000/
+Accept: application/json
+
+###
+### Create Organization
+POST http://127.0.0.1:8000/organizations/
+Content-Type: application/json
+
+{
+  "name": "Seoul General Hospital",
+  "description": "Public healthcare"
+}
+
+###
+### List Organizations
+GET http://127.0.0.1:8000/organizations/
+Accept: application/json
+
+###
+### Get Organization by ID (replace 1 with actual ID)
+GET http://127.0.0.1:8000/organizations/1
+Accept: application/json
+
+###
+### Update Organization
+PUT http://127.0.0.1:8000/organizations/1
+Content-Type: application/json
+
+{
+  "description": "Public healthcare (updated)"
+}
+
+###
+### Delete Organization
+DELETE http://127.0.0.1:8000/organizations/1
+
+###
+### Create Role
+POST http://127.0.0.1:8000/roles/
+Content-Type: application/json
+
+{
+  "name": "admin",
+  "description": "Full access"
+}
+
+###
+### List Roles
+GET http://127.0.0.1:8000/roles/
+
+###
+### Create User (after you have an organization)
+POST http://127.0.0.1:8000/users/
+Content-Type: application/json
+
+{
+  "email": "alice@example.com",
+  "full_name": "Alice",
+  "password": "secret123",
+  "organization_id": 1
+}
+
+###
+### List Users
+GET http://127.0.0.1:8000/users/

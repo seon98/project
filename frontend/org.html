@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Organization Detail</title>
+  <link rel="icon" href="data:," />
+  <style>
+    :root { --bg:#0f172a; --card:#111827; --muted:#94a3b8; --text:#e5e7eb; --accent:#22c55e; --danger:#ef4444; }
+    html, body { margin:0; padding:0; background:var(--bg); color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+    a { color:#60a5fa; text-decoration:none; }
+    .container { max-width: 860px; margin: 24px auto; padding: 0 16px; }
+    .card { background: var(--card); border: 1px solid #1f2937; border-radius: 12px; padding: 16px; box-shadow: 0 10px 20px rgba(0,0,0,.25); }
+    h1 { font-size: 20px; margin: 0 0 12px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .btn { display:inline-block; padding:10px 14px; border-radius: 10px; border:1px solid #2a3348; background:#131b2e; transition:.15s all ease; color:var(--text); }
+    .btn:hover { transform: translateY(-1px); border-color:#3b82f6; }
+    .tag { display:inline-block; font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid #334155; color:#cbd5e1; }
+    ul { padding-left: 18px; }
+    .kv { display:grid; grid-template-columns: 120px 1fr; gap: 6px 12px; }
+    .kv div { padding:6px 0; border-bottom:1px solid #1f2937; }
+  </style>
+</head>
+<body>
+  <div id="app" class="container">
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <h1>조직 상세</h1>
+        <a href="/frontend/index.html" class="btn">← 목록으로</a>
+      </div>
+      <div class="muted">조직에 대한 더 많은 정보를 확인하세요.</div>
+
+      <div v-if="message" class="muted" style="margin-top:12px">{{ message }}</div>
+
+      <div v-if="loading" style="margin-top:12px"><span class="tag">로딩 중...</span></div>
+
+      <template v-if="org">
+        <div style="margin-top:16px" class="kv">
+          <div class="muted">ID</div><div>#{{ org.id }}</div>
+          <div class="muted">이름</div><div>{{ org.name }}</div>
+          <div class="muted">설명</div><div>{{ org.description || '-' }}</div>
+          <div class="muted">생성일</div><div>{{ formatDT(org.created_at) }}</div>
+          <div class="muted">수정일</div><div>{{ formatDT(org.updated_at) }}</div>
+        </div>
+
+        <div style="margin-top:20px">
+          <h2 style="font-size:16px; margin:0 0 8px">부서 목록</h2>
+          <div class="muted" v-if="!org.departments || org.departments.length===0">등록된 부서가 없습니다.</div>
+          <ul v-else>
+            <li v-for="dept in org.departments" :key="dept.id">#{{ dept.id }} · {{ dept.name }}</li>
+          </ul>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js"></script>
+  <script>
+    const { createApp, reactive, onMounted } = Vue;
+
+    function getQueryId(){
+      const id = new URLSearchParams(location.search).get('id');
+      return id ? parseInt(id, 10) : null;
+    }
+
+    const API = {
+      detail: (id) => fetch(`/organizations/${id}/detail`).then(async r => { if(!r.ok){ throw new Error((await r.json()).detail || 'Load failed'); } return r.json(); })
+    };
+
+    createApp({
+      setup(){
+        const state = reactive({ loading:false, message:'', org:null });
+        function formatDT(dt){ if(!dt) return '-'; try{ return new Date(dt).toLocaleString(); } catch{ return dt; } }
+
+        async function load(){
+          const id = getQueryId();
+          if(!id){ state.message = 'id 쿼리 파라미터가 필요합니다 (?id=)'; return; }
+          try{
+            state.loading = true;
+            state.org = await API.detail(id);
+          }catch(e){ state.message = e.message || '상세 로드 실패'; }
+          finally{ state.loading = false; }
+        }
+
+        onMounted(load);
+        return { ...Vue.toRefs(state), formatDT };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
